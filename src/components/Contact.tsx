@@ -68,8 +68,12 @@ export function Contact() {
     setSubmitSuccess(false);
 
     try {
-      // Submit to backend — API key is securely stored server-side
-      const contactResponse = await fetch("/api/contact", {
+      // Submit to Netlify function or backend API
+      const apiUrl = import.meta.env.DEV 
+        ? "/api/contact" 
+        : "/.netlify/functions/contact";
+      
+      const contactResponse = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
