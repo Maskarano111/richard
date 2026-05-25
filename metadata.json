@@ -1,0 +1,8 @@
+{
+  "name": "3D Portfolio",
+  "description": "A modern, interactive 3D portfolio website using React Three Fiber, Tailwind CSS, and Motion.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
