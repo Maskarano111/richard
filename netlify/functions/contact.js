@@ -1,7 +1,4 @@
-import fetch from 'node-fetch';
-import fs from 'fs';
-import path from 'path';
-
+// Netlify Function for contact form
 // Sanitize input to prevent XSS attacks
 function sanitizeInput(input) {
   if (typeof input !== 'string') return '';
@@ -50,8 +47,7 @@ function checkRateLimit(ip, limit, window) {
 // Get client IP
 function getClientIp(event) {
   return event.headers['client-ip'] || 
-         event.headers['x-forwarded-for']?.split(',')[0] ||
-         'unknown';
+         (event.headers['x-forwarded-for'] ? event.headers['x-forwarded-for'].split(',')[0] : 'unknown');
 }
 
 exports.handler = async (event, context) => {
@@ -95,7 +91,17 @@ exports.handler = async (event, context) => {
     }
 
     // Parse request
-    const body = JSON.parse(event.body);
+    let body;
+    try {
+      body = JSON.parse(event.body);
+    } catch (e) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON' }),
+      };
+    }
+
     const { name, email, message, honeypot } = body;
 
     // Honeypot bot prevention
@@ -133,22 +139,27 @@ exports.handler = async (event, context) => {
     const web3formsApiKey = process.env.WEB3FORMS_ACCESS_KEY;
     
     if (web3formsApiKey) {
-      const emailResponse = await fetch('https://api.web3forms.com/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          access_key: web3formsApiKey,
-          name: sanitizedName,
-          email: sanitizedEmail,
-          message: sanitizedMessage,
-          from_name: 'Richard Masika Portfolio',
-        }),
-      });
+      try {
+        const emailResponse = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_key: web3formsApiKey,
+            name: sanitizedName,
+            email: sanitizedEmail,
+            message: sanitizedMessage,
+            from_name: 'Richard Masika Portfolio',
+          }),
+        });
 
-      const emailData = await emailResponse.json();
-      
-      if (!emailResponse.ok) {
-        console.error('Email sending failed:', emailData);
+        const emailData = await emailResponse.json();
+        
+        if (!emailResponse.ok) {
+          console.error('Email sending failed:', emailData);
+          // Continue even if email fails
+        }
+      } catch (emailError) {
+        console.error('Email fetch error:', emailError);
         // Continue even if email fails
       }
     }
