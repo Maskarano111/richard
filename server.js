@@ -27,8 +27,8 @@ var ALLOWED_ORIGINS = [
 ];
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   }
@@ -162,6 +162,9 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     res.status(500).json({ error: error.message || "An error occurred during content generation." });
   }
 });
+function sanitizeInput(input) {
+  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").slice(0, 500);
+}
 app.post("/api/contact", contactLimiter, async (req, res) => {
   try {
     const { name, email, message } = req.body;
@@ -171,15 +174,18 @@ app.post("/api/contact", contactLimiter, async (req, res) => {
     if (!trimmedName || !trimmedEmail || !trimmedMessage) {
       return res.status(400).json({ error: "Name, email, and message are required fields." });
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!emailRegex.test(trimmedEmail)) {
       return res.status(400).json({ error: "Invalid email address format." });
     }
+    const sanitizedName = sanitizeInput(trimmedName);
+    const sanitizedEmail = sanitizeInput(trimmedEmail);
+    const sanitizedMessage = sanitizeInput(trimmedMessage);
     const newContact = {
       id: Date.now().toString(),
-      name: trimmedName,
-      email: trimmedEmail,
-      message: trimmedMessage,
+      name: sanitizedName,
+      email: sanitizedEmail,
+      message: sanitizedMessage,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     };
     const contactsPath = path.join(__dirname, "contacts.json");
@@ -194,7 +200,28 @@ app.post("/api/contact", contactLimiter, async (req, res) => {
     }
     contacts.push(newContact);
     fs.writeFileSync(contactsPath, JSON.stringify(contacts, null, 2), "utf8");
-    console.log(`[Contact Form Received] Name: ${name}, Email: ${email}, Message: ${message}`);
+    console.log(`[Contact Form Received] Name: ${sanitizedName}, Email: ${sanitizedEmail}`);
+    const web3FormsApiKey = process.env.WEB3FORMS_ACCESS_KEY;
+    if (web3FormsApiKey) {
+      try {
+        await fetch("https://api.web3forms.com/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_key: web3FormsApiKey,
+            name: sanitizedName,
+            email: sanitizedEmail,
+            message: sanitizedMessage,
+            subject: `New Portfolio Message from ${sanitizedName}`
+          })
+        });
+        console.log("[Web3Forms] Email notification sent successfully.");
+      } catch (err) {
+        console.warn("[Web3Forms] Failed to send email notification:", err.message);
+      }
+    } else {
+      console.warn("[Web3Forms] WEB3FORMS_ACCESS_KEY not configured. Email notifications disabled.");
+    }
     res.json({ success: true, message: "Message sent successfully." });
   } catch (error) {
     console.error("Error in /api/contact:", error);

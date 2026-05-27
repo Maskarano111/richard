@@ -51,12 +51,24 @@ function getClientIp(event) {
 }
 
 exports.handler = async (event, context) => {
-  // Enable CORS
+  // Enable CORS - restrict to deployed domain in production
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    process.env.APP_URL || '',
+  ].filter(Boolean);
+  
+  const origin = event.headers.origin || event.headers.referer?.split('/')[2];
+  const isAllowedOrigin = allowedOrigins.some(allowed => 
+    origin?.includes(allowed.replace(/https?:\/\//, ''))
+  );
+  
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': isAllowedOrigin ? (origin || allowedOrigins[0]) : 'null',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
+    'X-Content-Type-Options': 'nosniff',
   };
 
   // Handle CORS preflight
